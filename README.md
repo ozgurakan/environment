@@ -122,12 +122,15 @@ ssh to _ubuntu-template01_
 
     root@terminal:~# ssh 10.180.35.100
     The authenticity of host '10.180.35.100 (10.180.35.100)' can't be established.
-    ECDSA key fingerprint is bd:e0:0e:5e:55:e8:90:37:ce:95:6c:37:a4:b3:6a:5a.
     Are you sure you want to continue connecting (yes/no)? yes
     Warning: Permanently added '10.180.35.100' (ECDSA) to the list of known hosts.
     Welcome to Ubuntu 13.04 (GNU/Linux 3.8.0-19-generic x86_64)
 
 ### Configure Ubuntu Template Instance
+
+Install salt minion
+
+    root@ubuntu-template01:~# apt-get install salt-minion -y
 
 ### Create CentOS Template Instance
  todo
