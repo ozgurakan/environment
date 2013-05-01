@@ -134,7 +134,11 @@ ssh to _ubuntu-template01_
 
 Install salt minion
 
-    root@ubuntu-template01:~# apt-get install salt-minion -y
+    root@salt-master01:~# apt-get install software-properties-common -y
+    root@salt-master01:~# add-apt-repository ppa:saltstack/salt
+    root@salt-master01:~# apt-get update
+    root@ubuntu-template01:~# apt-get install salt-minion -y 
+
 
 salt-minion is going to start running with default configuration. It won't be able to connect to master until we
 change the minion configuration file. We would like to change it while we are booting up a new instance for the first
@@ -147,13 +151,18 @@ We will use the instance id of ubuntu-template01 : _e3d3b622-b501-46c5-b371-4269
 
     root@terminal:~/tools# nova image-create e3d3b622-b501-46c5-b371-4269d69835d5 ubuntu1304-salt-base01
 
+This will take some time. So you may want to check the progress;
+
+    root@terminal:~/tools# nova show e3d3b622-b501-46c5-b371-4269d69835d5 | grep progress | awk {'print "Image Creation Progress " $4"%"'}
+    Image Creation Progress 100%
+
 ### _Create CentOS Template Instance_
  todo
 
 
 ## Create Salt Master
 
-### Start Salt Master Instance
+### Start Salt Master Instance (Ubuntu)
 
 We will use the base image we created from ubuntu-template01 instance. It only had minion. We will start the instance, disable salt minion, install salt master and a few other packages.
 
@@ -184,5 +193,51 @@ I removed some of the rows from above.
 
     root@terminal:~/tools# nova show 0f646c90-d251-43db-ad62-4b7052e8b34f | grep progress | awk {'print "Instance Creation Progress " $4"%"'}
     Instance Creation Progress 100%
+
+Once we see 100% we can login to the server
+
+#### Login To Salt Master
+
+Find Service Net IP Address for salt-master01
+
+    root@terminal:~/tools# nova show 0f646c90-d251-43db-ad62-4b7052e8b34f | grep "private network" | awk {'print $5'}
+    10.181.139.92
+
+ssh to the server
+
+    root@terminal:~# ssh 10.181.139.92
+    The authenticity of host '10.181.139.92 (10.181.139.92)' can't be established.
+    Are you sure you want to continue connecting (yes/no)? yes
+    Warning: Permanently added '10.181.139.92' (ECDSA) to the list of known hosts.
+    Welcome to Ubuntu 13.04 (GNU/Linux 3.8.0-19-generic x86_64)
+
+
+### Configure Salt Master Instance
+
+#### Install pip
+
+    root@salt-master01:~# apt-get install python-pip -y
+
+#### Install EMACS _optional_
+
+On this server we will do lots of editing so install your favorite text editor.
+
+    root@salt-master01:~# apt-get install emacs -y
+
+#### Install salt packages
+
+We don't really need to run these three commands as they were run for the template image.
+If you are booting up this instance from a plain Ubuntu image, then you need to run them.
+
+    root@salt-master01:~# apt-get install software-properties-common -y
+    root@salt-master01:~# add-apt-repository ppa:saltstack/salt
+    root@salt-master01:~# apt-get update
+
+Install Required Packages
+    
+    root@salt-master01:~# apt-get install salt-master
+    root@salt-master01:~# pip install salt-cloud
+
+
 
 ## Start a Minion Instance 
