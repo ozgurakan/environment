@@ -80,12 +80,12 @@ We will use these instances to create base images.
 
 On terminal server find the image id for desired Ubuntu version
 
-    root@terminal:~/tools# nova image-list | grep "Ubuntu 13.04"|awk {'print $2'}
+    root@terminal:~/tools# nova image-list | grep "Ubuntu 13.04" | awk {'print $2'}
     9922a7c7-5a42-4a56-bc6a-93f857ae2346
 
 Create a 512 MB Instance With the Image
 
-    nova boot ubuntu-template01 --image "9922a7c7-5a42-4a56-bc6a-93f857ae2346" --flavor 2 --file root/.ssh/authorized_keys=/root/.ssh/id_rsa.pub
+    nova boot ubuntu-template01 --image "9922a7c7-5a42-4a56-bc6a-93f857ae2346" --flavor 2 --file /root/.ssh/authorized_keys=/root/.ssh/id_rsa.pub
 
     +------------------------+--------------------------------------+
     | Property               | Value                                |
@@ -111,12 +111,16 @@ Create a 512 MB Instance With the Image
     | metadata               | {}                                   |
     +------------------------+--------------------------------------+
 
+Trick here is the public key of terminal server that we passed to the instance.
+
 #### Login Ubuntu Template Instance
 
 Find Service Net IP for _ubuntu-template01_ Instance
 
     root@terminal:~# nova show e3d3b622-b501-46c5-b371-4269d69835d5 | grep private|awk {'print $5'}
     10.180.35.100
+
+As we had copied public key of terminal server to this instance, it will let us login without a password.
 
 ssh to _ubuntu-template01_
 
@@ -132,11 +136,53 @@ Install salt minion
 
     root@ubuntu-template01:~# apt-get install salt-minion -y
 
-### Create CentOS Template Instance
+salt-minion is going to start running with default configuration. It won't be able to connect to master until we
+change the minion configuration file. We would like to change it while we are booting up a new instance for the first
+time.
+
+### Create an Image From Ubuntu Template Instance
+
+With nova client create take an image of ubuntu template instance. We will use this image as base image later on.
+We will use the instance id of ubuntu-template01 : _e3d3b622-b501-46c5-b371-4269d69835d5_
+
+    root@terminal:~/tools# nova image-create e3d3b622-b501-46c5-b371-4269d69835d5 ubuntu1304-salt-base01
+
+### _Create CentOS Template Instance_
  todo
 
 
 ## Create Salt Master
 
+### Start Salt Master Instance
+
+We will use the base image we created from ubuntu-template01 instance. It only had minion. We will start the instance, disable salt minion, install salt master and a few other packages.
+
+#### Find Image Id for ubuntu1304-salt-base01
+
+    root@terminal:~/tools# nova image-list | grep "ubuntu1304-salt-base01" | awk {'print $2'}
+    e8c15811-0852-47ab-b4d9-bcacc6f82119
+
+#### Create Salt Master Instance
+
+    root@terminal:~/tools# nova boot salt-master01 --image "e8c15811-0852-47ab-b4d9-bcacc6f82119" --flavor 4
+    +------------------------+--------------------------------------+
+    | Property               | Value                                |
+    +------------------------+--------------------------------------+
+    | status                 | BUILD                                |
+    | image                  | ubuntu1304-salt-base01               |
+    | OS-EXT-STS:task_state  | scheduling                           |
+    | OS-EXT-STS:vm_state    | building                             |
+    | flavor                 | 2GB Standard Instance                |
+    | id                     | 0f646c90-d251-43db-ad62-4b7052e8b34f |
+    | name                   | salt-master01                        |
+    | created                | 2013-05-01T18:09:49Z                 |
+    +------------------------+--------------------------------------+
+
+I removed some of the rows from above. 
+
+#### Check Progress
+
+    root@terminal:~/tools# nova show 0f646c90-d251-43db-ad62-4b7052e8b34f | grep progress | awk {'print "Instance Creation Progress " $4"%"'}
+    Instance Creation Progress 100%
 
 ## Start a Minion Instance 
