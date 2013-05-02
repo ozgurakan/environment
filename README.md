@@ -4,6 +4,7 @@
 ## Create Terminal Server
 
 Create the terminal server on mycloud.rackspace.com
+
 OS: Ubuntu 13.04 4GB
 
 #### Login to terminal server as root with password
@@ -151,10 +152,7 @@ We will use the instance id of ubuntu-template01 : _e3d3b622-b501-46c5-b371-4269
 
     root@terminal:~/tools# nova image-create e3d3b622-b501-46c5-b371-4269d69835d5 ubuntu1304-salt-base01
 
-This will take some time. So you may want to check the progress;
-
-    root@terminal:~/tools# nova show e3d3b622-b501-46c5-b371-4269d69835d5 | grep progress | awk {'print "Image Creation Progress " $4"%"'}
-    Image Creation Progress 100%
+This will take some time. 
 
 ### _Create CentOS Template Instance_
  todo
@@ -218,7 +216,7 @@ ssh to the server
 
     root@salt-master01:~# apt-get install python-pip -y
 
-#### Install EMACS _optional_
+#### Install emacs _optional_
 
 On this server we will do lots of editing so install your favorite text editor.
 
@@ -237,7 +235,121 @@ Install Required Packages
     
     root@salt-master01:~# apt-get install salt-master
     root@salt-master01:~# pip install salt-cloud
+    root@salt-master03:~# pip install apache-libcloud
+    root@salt-master03:~# pip install botocore
+    root@salt-master03:~# apt-get install sshpass
 
+### Configure salt-cloud For Rackspace OpenStack
 
+We need two files to configure salt-cloud. 
+
+First one defines the cloud provider. 
+
+    root@salt-master03:~# mkdir /etc/salt/cloud.providers.d
+    root@salt-master03:~/# touch /etc/salt/cloud.providers.d/rackspace-dfw.conf
+
+Content of the file:
+
+    marconi-rackspace-dfw:
+      minion:
+        master: <IP address of salt master>
+
+      identity_url: 'https://identity.api.rackspacecloud.com/v2.0/tokens'
+      protocol: ipv4
+
+      compute_region: DFW
+
+      user: <username>
+      tenant: <tenant id>
+      apikey: <API key>
+
+      provider: openstack
+
+Above _marconi-rackspace-dfw_ is the name of the provider that we choose.
+
+Second file is more generic. It has profiles (definitions of VMs). To be able to 
+create this file first we need to find out what tpyes of instaces and images are available.
+
+List instance types:
+
+    root@salt-master03:/etc/salt/cloud.providers.d# salt-cloud --list-sizes marconi-rackspace-dfw
+    openstack
+      15GB Standard Instance
+        disk: 620
+        id: 7
+        ram: 15360
+        uuid: 0ef9c73c90226fb4e49854943d9b97a42ca75d7a
+      1GB Standard Instance
+        disk: 40
+        id: 3
+        ram: 1024
+        uuid: 916b53726166c76dc51eeccd7ffc79a337a912bc
+      2GB Standard Instance
+        disk: 80
+        id: 4
+        ram: 2048
+        uuid: b8122b232b105e228f1fd46488a6f731c877063c
+      30GB Standard Instance
+        disk: 1200
+        id: 8
+        ram: 30720
+        uuid: a925708be0cf852459a1cc9668b7266704e29b32
+      4GB Standard Instance
+        disk: 160
+        id: 5
+        ram: 4096
+        uuid: 8f0083f719dbc84a16323b7ad37ef6d0f240dba9
+      512MB Standard Instance
+        disk: 20
+        id: 2
+        ram: 512
+        uuid: 4fdfc2dbc25fe8e7d640be69eb5e201382996d62
+      8GB Standard Instance
+        disk: 320
+        id: 6
+        ram: 8192
+        uuid: dcb6758ab0f6a1f88b97ffb1156bcc5e4eac6820
+ 
+ List image types:
+
+    root@salt-master03:~# salt-cloud --list-images marconi-rackspace-dfw
+    ...clipped....
+      ubuntu1304-salt-base02
+        extra:
+          created: 2013-05-01T19:00:56Z
+          metadata: {u'com.rackspace__1__options': u'0', u'instance_type_id': u'2', u'instance_type_vcpus': u'1', u'com.rackspace__1__release_id': u'1005', u'com.rackspace__1__build_core': u'1', u'base_image_ref': u'9922a7c7-5a42-4a56-bc6a-93f857ae2346', u'os_distro': u'ubuntu', u'org.openstack__1__os_distro': u'com.ubuntu', u'image_type': u'snapshot', u'com.rackspace__1__source': u'kickstart', u'instance_type_ephemeral_gb': u'0', u'com.rackspace__1__release_state': u'kickstart_qc_pass', u'com.rackspace__1__build_managed': u'1', u'org.openstack__1__architecture': u'x64', u'com.rackspace__1__visible_core': u'1', u'instance_type_vcpu_weight': u'10', u'instance_type_root_gb': u'20', u'instance_type_name': u'512MB Standard Instance', u'com.rackspace__1__release_build_date': u'2013-04-25_17-03-56', u'instance_type_rxtx_factor': u'2', u'auto_disk_config': u'True', u'com.rackspace__1__release_version': u'2', u'com.rackspace__1__visible_managed': u'1', u'instance_uuid': u'e3d3b622-b501-46c5-b371-4269d69835d5', u'instance_type_memory_mb': u'512', u'instance_type_swap': u'512', u'com.rackspace__1__build_rackconnect': u'1', u'user_id': u'330725', u'instance_type_flavorid': u'2', u'com.rackspace__1__visible_rackconnect': u'1', u'os_type': u'linux', u'org.openstack__1__os_version': u'13.04'}
+          minDisk: 20
+          minRam: 512
+          progress: 100
+          serverId: e3d3b622-b501-46c5-b371-4269d69835d5
+          status: ACTIVE
+          updated: 2013-05-01T19:05:21Z
+        id: 1bf8c0d9-a09b-43d5-9622-f5b9df843d69
+        uuid: c4f1cb92fb985ddd80d7decd4c18edf8589a05ab
+
+Now lets create profiles file for rackspace
+
+    root@salt-master03:~# touch /etc/salt/cloud.profiles.d/rackspace.conf
+
+Content of the file:    
+
+    centos_512:
+        provider: marconi-rackspace-dfw
+        size: 512MB Standard Instance
+        image: CentOS 6.3
+
+    ubuntu_512:
+        provider: marconi-rackspace-dfw
+        size: 512MB Standard Instance
+        image: Ubuntu 13.04 (Raring Ringtail)
+
+    ubi_512:
+        provider: marconi-rackspace-dfw
+        size: 512MB Standard Instance
+        image: ubuntu1304-salt-base02
+
+Lets test to create an instance:
+
+    root@salt-master03:~# salt-cloud -l debug -p ubi_512 delete-me-custom
 
 ## Start a Minion Instance 
