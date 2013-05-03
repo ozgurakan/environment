@@ -1,5 +1,10 @@
 # Environment Setup
 
+We will create a terminal server where we will have nova client to create instances.
+Then we will create base images for Ubuntu and CentOS. These images will have latest 
+updates to bootstrapping a new instance will be faster and we will know exactly what 
+we are getting.
+
 
 ## Create Terminal Server
 
@@ -131,7 +136,7 @@ ssh to _ubuntu-template01_
     Warning: Permanently added '10.180.35.100' (ECDSA) to the list of known hosts.
     Welcome to Ubuntu 13.04 (GNU/Linux 3.8.0-19-generic x86_64)
 
-### Configure Ubuntu Template Instance
+#### Configure Ubuntu Template Instance
 
 Install salt minion
 
@@ -145,7 +150,7 @@ salt-minion is going to start running with default configuration. It won't be ab
 change the minion configuration file. We would like to change it while we are booting up a new instance for the first
 time.
 
-### Create an Image From Ubuntu Template Instance
+#### Create an Image From Ubuntu Template Instance
 
 With nova client create take an image of ubuntu template instance. We will use this image as base image later on.
 We will use the instance id of ubuntu-template01 : _e3d3b622-b501-46c5-b371-4269d69835d5_
@@ -154,8 +159,57 @@ We will use the instance id of ubuntu-template01 : _e3d3b622-b501-46c5-b371-4269
 
 This will take some time. 
 
-### _Create CentOS Template Instance_
- todo
+### Create CentOS Template Instance
+
+On terminal server find the image id for the desired CentOS version
+
+    root@terminal:~/tools# nova image-list | grep -i "centos 6.3" | awk {'print $2'}
+    da1f0392-8c64-468f-a839-a9e56caebf07
+
+Create a 512MB instance with this image
+
+    root@terminal:~/tools# nova boot centos63-template --image "da1f0392-8c64-468f-a839-a9e56caebf07" --flavor 2 --file /root/.ssh/authorized_keys=/root/.ssh/id_rsa.pub
+
+### Login to CentOS Template Image
+
+Find IP Address of centos63-template instance.
+
+    root@terminal:~# nova show 41b1ea8f-ff35-4c97-9a01-e07d3e2d78ef | grep private|awk {'print $5'}
+
+ssh to centos63-template, It will ask the password that was displayed in the output of nova boot command.
+
+    root@terminal:~# ssh 10.182.22.104
+    The authenticity of host '10.182.22.104 (10.182.22.104)' can't be established.
+    Are you sure you want to continue connecting (yes/no)? yes
+    Warning: Permanently added '10.182.22.104' (RSA) to the list of known hosts.
+    root@10.182.22.104's password:
+    [root@centos63-template ~]#
+    
+Update the system:
+    
+    root@terminal:~# yum update -y
+    .....
+    Complete!
+
+
+### Create An Image From CentOS Template Instance
+
+    root@terminal:~/tools# nova image-create 41b1ea8f-ff35-4c97-9a01-e07d3e2d78ef centos63-base01
+
+Check the status:
+
+    root@terminal:~/tools# nova image-list|grep centos63-base01 | awk {'print $4" status: "$6'}
+    centos63-base01 status: SAVING
+    root@terminal:~/tools# nova show 41b1ea8f-ff35-4c97-9a01-e07d3e2d78ef | grep task_state | awk {'print $4'}
+    image_uploading
+    root@terminal:~/tools# nova show 41b1ea8f-ff35-4c97-9a01-e07d3e2d78ef | grep task_state | awk {'print $4'}
+    None
+    root@terminal:~/tools# nova image-list|grep centos63-base01 | awk {'print $4" status: "$6'}
+    centos63-base01 status: ACTIVE
+
+Our image is ready so we can terminate centos63-template
+
+    root@terminal:~/tools# nova delete 41b1ea8f-ff35-4c97-9a01-e07d3e2d78ef
 
 
 ## Create Salt Master
@@ -168,6 +222,12 @@ We will use the base image we created from ubuntu-template01 instance. It only h
 
     root@terminal:~/tools# nova image-list | grep "ubuntu1304-salt-base01" | awk {'print $2'}
     e8c15811-0852-47ab-b4d9-bcacc6f82119
+
+Get the id from the output of the previous command and find IP address of the instance.
+
+    root@terminal:~/tools# nova show 41b1ea8f-ff35-4c97-9a01-e07d3e2d78ef | grep private|awk {'print $5'}
+    10.182.22.104
+
 
 #### Create Salt Master Instance
 
@@ -246,7 +306,7 @@ We need two files to configure salt-cloud.
 First one defines the cloud provider. 
 
     root@salt-master03:~# mkdir /etc/salt/cloud.providers.d
-    root@salt-master03:~/# touch /etc/salt/cloud.providers.d/rackspace-dfw.conf
+    root@salt-master03:~/# touch /etc/salt/cloud.providers.d/rackspace.conf
 
 Content of the file:
 
@@ -314,18 +374,18 @@ List instance types:
 
     root@salt-master03:~# salt-cloud --list-images marconi-rackspace-dfw
     ...clipped....
-      ubuntu1304-salt-base02
+      CentOS 6.3
         extra:
-          created: 2013-05-01T19:00:56Z
-          metadata: {u'com.rackspace__1__options': u'0', u'instance_type_id': u'2', u'instance_type_vcpus': u'1', u'com.rackspace__1__release_id': u'1005', u'com.rackspace__1__build_core': u'1', u'base_image_ref': u'9922a7c7-5a42-4a56-bc6a-93f857ae2346', u'os_distro': u'ubuntu', u'org.openstack__1__os_distro': u'com.ubuntu', u'image_type': u'snapshot', u'com.rackspace__1__source': u'kickstart', u'instance_type_ephemeral_gb': u'0', u'com.rackspace__1__release_state': u'kickstart_qc_pass', u'com.rackspace__1__build_managed': u'1', u'org.openstack__1__architecture': u'x64', u'com.rackspace__1__visible_core': u'1', u'instance_type_vcpu_weight': u'10', u'instance_type_root_gb': u'20', u'instance_type_name': u'512MB Standard Instance', u'com.rackspace__1__release_build_date': u'2013-04-25_17-03-56', u'instance_type_rxtx_factor': u'2', u'auto_disk_config': u'True', u'com.rackspace__1__release_version': u'2', u'com.rackspace__1__visible_managed': u'1', u'instance_uuid': u'e3d3b622-b501-46c5-b371-4269d69835d5', u'instance_type_memory_mb': u'512', u'instance_type_swap': u'512', u'com.rackspace__1__build_rackconnect': u'1', u'user_id': u'330725', u'instance_type_flavorid': u'2', u'com.rackspace__1__visible_rackconnect': u'1', u'os_type': u'linux', u'org.openstack__1__os_version': u'13.04'}
-          minDisk: 20
+          created: 2013-04-04T15:18:17Z
+          metadata: {u'os_distro': u'centos', u'com.rackspace__1__kickstart_qc': u'pass', u'com.rackspace__1__visible_core': u'1', u'com.rackspace__1__build_rackconnect': u'1', u'com.rackspace__1__release_id': u'212', u'image_type': u'base', u'com.rackspace__1__release_build_date': u'2013-03-06_17-09-15', u'com.rackspace__1__source': u'kickstart', u'org.openstack__1__os_distro': u'org.centos', u'cache_in_nova': u'True', u'com.rackspace__1__visible_rackconnect': u'1', u'com.rackspace__1__release_version': u'2', u'org.openstack__1__os_version': u'6.3', u'auto_disk_config': u'True', u'com.rackspace__1__options': u'0', u'os_type': u'linux', u'com.rackspace__1__build_core': u'1', u'com.rackspace__1__visible_managed': u'1', u'org.openstack__1__architecture': u'x64', u'com.rackspace__1__build_managed': u'1'}
+          minDisk: 0
           minRam: 512
           progress: 100
-          serverId: e3d3b622-b501-46c5-b371-4269d69835d5
+          serverId: None
           status: ACTIVE
-          updated: 2013-05-01T19:05:21Z
-        id: 1bf8c0d9-a09b-43d5-9622-f5b9df843d69
-        uuid: c4f1cb92fb985ddd80d7decd4c18edf8589a05ab
+          updated: 2013-04-22T17:20:03Z
+        id: da1f0392-8c64-468f-a839-a9e56caebf07
+        uuid: 56e543f881cad99fa21aa4bf06cb20ba578adc40
 
 Now lets create profiles file for rackspace
 
@@ -338,6 +398,11 @@ Content of the file:
         size: 512MB Standard Instance
         image: CentOS 6.3
 
+    centos63-base_512:
+        provider: marconi-rackspace-dfw
+        size: 512MB Standard Instance
+        image: centos63-base01
+
     ubuntu_512:
         provider: marconi-rackspace-dfw
         size: 512MB Standard Instance
@@ -348,8 +413,26 @@ Content of the file:
         size: 512MB Standard Instance
         image: ubuntu1304-salt-base02
 
+    ubuntu1204_512:
+        provider: marconi-rackspace-dfw
+        size: 512MB Standard Instance
+        image: Ubuntu 12.10 (Quantal Quetzal)
+
 Lets test to create an instance:
 
-    root@salt-master03:~# salt-cloud -l debug -p ubi_512 delete-me-custom
+    root@salt-master03:~# salt-cloud -l debug -p centos63-base_512 delete-me-centos-base
 
-## Start a Minion Instance 
+Once the instance is ready, lets check if salt master can talk to it:
+
+    root@salt-master03:~# salt 'delete-me-centos-base' test.ping
+    delete-me-centos-base:
+        True
+
+If you login to the instance, you will see that salt minion has been installed and configured and 
+is talking to salt master.
+
+    
+
+# Lets Deploy MongoDB
+
+
