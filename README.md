@@ -431,8 +431,104 @@ Once the instance is ready, lets check if salt master can talk to it:
 If you login to the instance, you will see that salt minion has been installed and configured and 
 is talking to salt master.
 
-    
+
+# About Salt
+
+## Salt Master Configuration
+
+Main configuration file for salt master is /etc/salt/master. Change _file\_roots_ section in /etc/salt/master file to this:
+
+    file_roots:
+      base:
+        - /srv/salt/base
+      dev:
+        - /srv/salt/dev
+      test:
+        - /srv/salt/test
+      prod:
+        - /srv/salt/prod
+
+This is going to give us four environments. base is a special environment. What ever is there, is going to 
+be applied to all environments. Also _top.sls_ file is going to be there. Now create the folders:
+
+    root@salt-master03:/srv/# mkdir /srv/salt; cd /srv/salt; pwd
+    /srv/salt
+    root@salt-master03:/srv/salt# mkdir base; mkdir dev; mkdir test; mkdir prod
+    root@salt-master03:/srv/salt# ls
+    base  dev  prod  test
+
+
+## Top File
+
+[Top file](http://docs.saltstack.com/ref/states/top.html "top file") defines what SLS modules are loaded to which minions. Create the top.sls file under /srv/salt/base:
+
+    root@salt-master03:/srv/salt/base# touch top.sls
+
+_top.sls_ is going to look like this:
+
+    base:
+      '*':
+        - common
+    test:
+      'G@environment:test and G@roles:mongodb':
+        - match: compound
+        - mongodb
+
+Here we defined base environment first. It has "common" state. Second, we defined test environment. It has a 
+[compound matcher](http://docs.saltstack.com/topics/targeting/compound.html "compound matcher") and looks for minions which have "environment" and "roles" grains with proper values.
+
+## States
+
+[States](http://docs.saltstack.com/topics/tutorials/walkthrough.html#salt-states "states") are the files that define in which state a minion (server) is going to be in. It holds the configuration for minions.
+
+Fist lets create common state.
+
+
 
 # Lets Deploy MongoDB
 
+## Create State Files
+todo
 
+## Create MonogDB Instances
+
+Create 3 servers which will run mongodb.
+    
+    salt-cloud -P -p mongodb_512 test1-a-mongo1 test1-a-mongo2 test1-a-mongo3
+
+These servers have nothing installed yet. We will tag these servers and install required packages.
+
+
+    root@salt-master03:~# salt 'test1-a-mongo*' grains.setval environment 'test'
+    root@salt-master03:~# salt 'test1-a-mongo*' grains.setval roles ['mongodb']
+    root@salt-master03:~# salt 'test1-a-mongo*' grains.setval mongodb_replica_set 'cluster1'
+    root@salt-master03:~# salt 'test1-a-mongo1' grains.setval mongodb_role 'primary'
+    root@salt-master03:~# salt 'test1-a-mongo[2,3]' grains.setval mongodb_role 'secondary'
+
+Distribute these grains to minions (servers)
+
+    root@salt-master03:~# salt 'test1-a-mongo*' saltutil.sync_grains
+
+
+Create Over State File
+
+    mongodb:
+        match: '*'
+        sls:
+            - mongodb_server
+    replica:
+        match: '*'
+        sls:
+            - mongodb_server.replica
+        require:
+            - mongodb
+
+Test
+
+    root@salt-master03:~# salt -C 'G@role:mongodb and G@mongodb_replica_set:cluster1'  test.ping
+
+Lets run all states for new servers
+
+    root@salt-master03:~# salt 'test1-a-mongo*' state.highstate
+
+This installs base state and then mongo related states based on the roles.
